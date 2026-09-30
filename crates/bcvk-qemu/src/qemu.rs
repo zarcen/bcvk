@@ -607,14 +607,22 @@ fn spawn(
         cmd.args(["-machine", machine]);
     }
 
+    // EXPERIMENTAL PATCH (not upstream): fall back to TCG software emulation
+    // when /dev/kvm is unavailable (e.g. GitHub-hosted ubuntu-24.04-arm),
+    // instead of hardcoding -enable-kvm/-cpu host, which fails outright there.
+    // Purely for a one-off timing test -- not a proposed upstream change.
+    let kvm_available = std::path::Path::new("/dev/kvm").exists();
+    if kvm_available {
+        cmd.args(["-enable-kvm", "-cpu", "host"]);
+    } else {
+        cmd.args(["-cpu", "max"]);
+    }
+
     cmd.args([
         "-m",
         &memory_arg,
         "-smp",
         &config.vcpus.to_string(),
-        "-enable-kvm",
-        "-cpu",
-        "host",
         "-audio",
         "none",
         "-object",
