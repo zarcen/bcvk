@@ -799,7 +799,10 @@ fn prepare_run_command_with_temp(
     if let Some(network) = opts.podman.network.as_deref() {
         cmd.args(["--network", network]);
     }
-    if opts.podman.rm {
+    // EXPERIMENTAL PATCH (not upstream): never pass --rm, so a container that
+    // dies immediately (e.g. under TCG debugging) lingers for `podman logs`
+    // instead of vanishing before we can inspect it.
+    if opts.podman.rm && std::env::var("BCVK_TCG_DEBUG_KEEP_CONTAINER").is_err() {
         cmd.arg("--rm");
     }
     if opts.podman.tty {
