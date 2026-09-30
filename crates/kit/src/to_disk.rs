@@ -615,11 +615,29 @@ pub fn run(mut opts: ToDiskOpts) -> Result<RunOutcome> {
         Ok(())
     })();
 
+    // EXPERIMENTAL PATCH (not upstream): when debugging, dump the container's
+    // logs before removing it, and skip removal entirely so it can still be
+    // inspected afterward.
+    let debug_keep = std::env::var("BCVK_TCG_DEBUG_KEEP_CONTAINER").is_ok();
+    if debug_keep {
+        if let Ok(output) = std::process::Command::new("podman")
+            .args(["logs", "--", &container_id])
+            .output()
+        {
+            eprintln!("=== podman logs {container_id} (pre-cleanup dump) ===");
+            eprintln!("{}", String::from_utf8_lossy(&output.stdout));
+            eprintln!("--- stderr ---");
+            eprintln!("{}", String::from_utf8_lossy(&output.stderr));
+        }
+    }
+
     // Cleanup: stop and remove the container
     debug!("Cleaning up ephemeral container...");
-    let _ = std::process::Command::new("podman")
-        .args(["rm", "-f", "--", &container_id])
-        .output();
+    if !debug_keep {
+        let _ = std::process::Command::new("podman")
+            .args(["rm", "-f", "--", &container_id])
+            .output();
+    }
 
     // Handle the result - remove disk file on failure
     match result {
