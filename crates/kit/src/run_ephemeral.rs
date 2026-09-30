@@ -839,8 +839,13 @@ fn prepare_run_command_with_temp(
         // Ensure we can create large files on the host and not in the overlay
         "-v",
         "/var/tmp:/var/tmp",
-        "--device=/dev/kvm",
     ]);
+    // EXPERIMENTAL PATCH (not upstream): only pass through /dev/kvm when it
+    // actually exists, instead of hardcoding it -- otherwise podman itself
+    // refuses to start the container before QEMU even runs.
+    if std::path::Path::new("/dev/kvm").exists() {
+        cmd.args(["--device=/dev/kvm"]);
+    }
     cmd.args(vhost_dev);
     cmd.args([
         "-v",
@@ -1388,9 +1393,11 @@ pub(crate) async fn run_impl(opts: RunEphemeralOpts) -> Result<()> {
     };
     tracing::debug!("Target image has cloud-init: {cloudinit}");
 
-    // Verify KVM access
+    // EXPERIMENTAL PATCH (not upstream): don't hard-fail when KVM is
+    // unavailable -- fall back to TCG (see matching patches in qemu.rs and
+    // the podman --device=/dev/kvm passthrough above). Only warn.
     if !Utf8Path::new("/dev/kvm").exists() || !fs::File::open("/dev/kvm").is_ok() {
-        return Err(eyre!("KVM device not accessible"));
+        tracing::warn!("KVM device not accessible, falling back to TCG (will be slow)");
     }
 
     // Create QEMU mount points
